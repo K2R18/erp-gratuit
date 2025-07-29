@@ -21,29 +21,14 @@
     <button id="verifyBtn" type="button">Vérifier l'adresse et interroger les parcelles</button>
   </form>
 
-  <div id="erp-summary" style="margin-top: 20px;"></div>
+  <div id="erp-summary" style="margin-top:20px;"></div>
+  <div id="cartos" style="margin-top:20px;"></div>
+  <button id="generate-pdf" disabled style="margin-top:20px;">Générer le PDF ERP officiel</button>
+  <div id="result" style="margin-top:20px;"></div>
 
-  <div id="cartos" style="margin-top: 20px;"></div>
-
-  <button id="generate-pdf" disabled style="margin-top: 20px;">
-    Générer le PDF ERP officiel
-  </button>
-
-  <div id="result" style="margin-top: 20px;"></div>
-
-  <!-- Google Places API : remplace TA_CLE_API_GOOGLE par ta vraie clé API Google Maps avec API Places activée -->
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMlsybj--6TW-7Xvew6WogHkHzMA7Y3Yc&libraries=places&language=fr"
-    defer
-  ></script>
-
-  <!-- Librairie PDF-lib pour la manipulation PDF -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"
-    defer
-  ></script>
-
-  <!-- Script personnalisé -->
+  <!-- Google Places API : remplace TA_CLE_API_GOOGLE par ta clé Google -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMlsybj--6TW-7Xvew6WogHkHzMA7Y3Yc&libraries=places&language=fr" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" defer></script>
   <script src="script.js" defer></script>
 </body>
 </html>
