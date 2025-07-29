@@ -1,7 +1,8 @@
-// script.js
-
 let autocomplete, selectedPlace = null, parcelleData = null, geoData = null, cartoImgURLs = [];
 
+/**
+ * Initialise Google Places Autocomplete sur le champ adresse
+ */
 function initAutocomplete() {
   const input = document.getElementById('autocomplete');
   autocomplete = new google.maps.places.Autocomplete(input, {
@@ -18,14 +19,13 @@ window.onload = () => {
   initAutocomplete();
 
   document.getElementById('verifyBtn').onclick = async function () {
-
     if (!selectedPlace || !selectedPlace.geometry) {
-      alert("Merci de sélectionner une adresse.");
+      alert("Merci de sélectionner une adresse dans la liste déroulante.");
       return;
     }
 
-    // Initialisation et nettoyage des zones d'affichage
-    document.getElementById('erp-summary').innerHTML = "Recherche cadastrale…";
+    // Reset affichages et variables
+    document.getElementById('erp-summary').innerHTML = "Recherche cadastrale en cours…";
     document.getElementById('result').textContent = "";
     document.getElementById('cartos').innerHTML = "";
     document.getElementById('generate-pdf').disabled = true;
@@ -36,7 +36,7 @@ window.onload = () => {
     const lng = selectedPlace.geometry.location.lng();
 
     try {
-      // Requête API cadastrale IGN
+      // --- Appel API CADASTRE IGN ---
       const resp = await fetch(`https://apicarto.ign.fr/api/cadastre/parcelle?lat=${lat}&lon=${lng}`);
       if (!resp.ok) throw new Error("Erreur récupération parcelle cadastrale");
       const cadastre = await resp.json();
@@ -49,7 +49,7 @@ window.onload = () => {
         `<b>Référence cadastrale :</b> ${parcelleData.commune_code} - ${parcelleData.section}-${parcelleData.numero}<br>` +
         `<i>Recherche en cours des risques et plans…</i>`;
 
-      // Construction URL API Géorisques avec paramètres encodés proprement
+      // Construction URL API Géorisques avec encodage propre
       const params = new URLSearchParams({
         codeCommune: parcelleData.commune_code,
         section: parcelleData.section,
@@ -57,12 +57,12 @@ window.onload = () => {
       });
       const geoUrl = `https://www.georisques.gouv.fr/api/v1/erp/cadastre?${params.toString()}`;
 
-      // Requête API Géorisques
+      // --- Appel API Géorisques ---
       const geoResp = await fetch(geoUrl);
       if (!geoResp.ok) throw new Error("Erreur API Géorisques");
       geoData = await geoResp.json();
 
-      // Affichage des extraits cartographiques (si disponibles)
+      // Affichage des extraits cartographiques si existants
       if (geoData.cartos && Array.isArray(geoData.cartos)) {
         let cartoHtml = "<h2>Extraits cartographiques réglementaires</h2>";
         geoData.cartos.forEach(carto => {
@@ -77,11 +77,11 @@ window.onload = () => {
       document.getElementById('erp-summary').innerHTML += "<br><b>Risques ERP récupérés : voir détails ci-dessous.</b>";
       document.getElementById('generate-pdf').disabled = false;
 
-      // Affichage tableau des risques
-      if (geoData.risques) {
+      // Affichage tableau risques
+      if (geoData.risques && geoData.risques.length) {
         let html = "<table><thead><tr><th>Type</th><th>État</th><th>Date</th><th>Exposé&nbsp;?</th></tr></thead><tbody>";
         geoData.risques.forEach(r => {
-          html += `<tr><td>${r.type || ''}</td><td>${r.etat || ''}</td><td>${r.date || ''}</td><td>${r.exposition ? 'Oui' : 'Non'}</td></tr>`;
+          html += `<tr><td>${r.type || ''}</td><td>${r.etat || ''}</td><td>${r.date || ''}</td><td>${r.exposition ? "Oui" : "Non"}</td></tr>`;
         });
         html += "</tbody></table>";
         document.getElementById('result').innerHTML = html;
@@ -97,7 +97,7 @@ window.onload = () => {
     }
   };
 
-  // Génération PDF - fonction basique, adaptée selon template_erp.pdf
+  // Génération PDF complet avec remplissage des champs
   document.getElementById('generate-pdf').onclick = async () => {
     try {
       const url = "template_erp.pdf";
@@ -106,12 +106,10 @@ window.onload = () => {
 
       const form = pdfDoc.getForm();
 
-      if (form) {
+      if (form && form.getFieldMaybe) {
         const setField = (name, value) => {
-          const field = form.getFieldMaybe ? form.getFieldMaybe(name) : null;
-          if (field) {
-            field.setText(value);
-          }
+          const field = form.getFieldMaybe(name);
+          if (field) field.setText(value);
         };
 
         setField("Adresse", selectedPlace.formatted_address || "");
@@ -130,26 +128,23 @@ window.onload = () => {
           setField("Sinistres", sinistresDesc);
         }
 
-        form.flatten();  // Empêche la modification après génération
-
+        form.flatten();
       } else {
-        // Si formulaire interactif manquant, écrire texte simple sur la première page
+        // Option fallback si pas de formulaire interactif
         const page = pdfDoc.getPages()[0];
-        const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+        const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
-        page.drawText(`Adresse : ${selectedPlace.formatted_address}`, { x: 50, y: 650, size: 12, font: helveticaFont });
-        page.drawText(`Parcelle : ${parcelleData.commune_code} - ${parcelleData.section}-${parcelleData.numero}`, { x: 50, y: 630, size: 12, font: helveticaFont });
+        page.drawText(`Adresse : ${selectedPlace.formatted_address}`, { x: 50, y: 650, size: 12, font });
+        page.drawText(`Parcelle : ${parcelleData.commune_code} - ${parcelleData.section}-${parcelleData.numero}`, { x: 50, y: 630, size: 12, font });
 
         let y = 610;
-        if (geoData.risques) {
-          geoData.risques.forEach(r => {
-            page.drawText(`${r.type} : ${r.exposition ? "Oui" : "Non"}`, { x: 50, y, size: 11, font: helveticaFont });
-            y -= 15;
-          });
-        }
+        geoData.risques && geoData.risques.forEach(r => {
+          page.drawText(`${r.type} : ${r.exposition ? "Oui" : "Non"}`, { x: 50, y, size: 11, font });
+          y -= 15;
+        });
       }
 
-      // Ajouter les images cartographiques en pages supplémentaires PDF
+      // Ajouter les images cartographiques en pages supplémentaires
       for (const imgURL of cartoImgURLs) {
         try {
           const imgBytes = await fetch(imgURL).then(res => res.arrayBuffer());
@@ -163,11 +158,11 @@ window.onload = () => {
           const page = pdfDoc.addPage([width, height]);
           page.drawImage(embeddedImage, { x: 0, y: 0, width, height });
         } catch (e) {
-          console.warn("Impossible d'ajouter une image cartographique :", e);
+          console.warn("Erreur ajout image cartographique :", e);
         }
       }
 
-      // Sauvegarde et téléchargement
+      // Générer et proposer le téléchargement
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const link = document.createElement('a');
