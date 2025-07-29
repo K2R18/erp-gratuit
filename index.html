@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>ERP : Recherche par parcelle cadastrale</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;}
+    input, button { width: 100%; padding: 10px; margin-top: 10px; }
+    #result { white-space: pre-wrap; margin-top: 20px; background: #eee; padding: 10px; border-radius: 4px; }
+    h1 { color: #2c3e50; }
+  </style>
+</head>
+<body>
+  <h1>Saisir votre adresse cadastrale</h1>
+  <input id="autocomplete" type="text" placeholder="N° rue, rue, code postal, ville" />
+  <button id="verifyBtn">Vérifier l'adresse et interroger les parcelles</button>
+  <div style="margin-top:10px; font-size:0.95em;">
+    <ul>
+      <li>Laissez l’autocomplétion vous suggérer une adresse, puis sélectionnez-la, cliquez sur «&nbsp;Vérifier&nbsp;».</li>
+      <li>La référence cadastrale sera détectée automatiquement.</li>
+      <li>La fiche risques utilisera la recherche «&nbsp;par parcelle&nbsp;» de l’API Géorisques.</li>
+    </ul>
+  </div>
+  <pre id="result"></pre>
+  <!-- Mets TA_CLE_API_GOOGLE ici -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMlsybj--6TW-7Xvew6WogHkHzMA7Y3Yc&libraries=places&language=fr"></script>
+  <script src="script.js"></script>
+</body>
+</html>
