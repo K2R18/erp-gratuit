@@ -1,17 +1,16 @@
 let autocomplete, selectedPlace = null, parcelleData = null, geoData = null, cartoImgURLs = [];
 
-/**
- * Initialise Google Places Autocomplete sur le champ adresse
- */
 function initAutocomplete() {
   const input = document.getElementById('autocomplete');
   autocomplete = new google.maps.places.Autocomplete(input, {
     types: ['address'],
     componentRestrictions: { country: 'fr' },
-    fields: ['address_components', 'geometry', 'formatted_address'],
+    fields: ['address_components', 'geometry', 'formatted_address']
   });
   autocomplete.addListener('place_changed', () => {
     selectedPlace = autocomplete.getPlace();
+    // log debug
+    console.log("Place sélectionnée :", selectedPlace);
   });
 }
 
@@ -24,8 +23,8 @@ window.onload = () => {
       return;
     }
 
-    // Reset affichages et variables
-    document.getElementById('erp-summary').innerHTML = "Recherche cadastrale en cours…";
+    // Affichage et variables de réinitialisation
+    document.getElementById('erp-summary').innerHTML = "Recherche cadastrale…";
     document.getElementById('result').textContent = "";
     document.getElementById('cartos').innerHTML = "";
     document.getElementById('generate-pdf').disabled = true;
@@ -36,38 +35,40 @@ window.onload = () => {
     const lng = selectedPlace.geometry.location.lng();
 
     try {
-      // --- Appel API CADASTRE IGN ---
+      // ----- Récupère la parcelle cadastrale via IGN -----
       const resp = await fetch(`https://apicarto.ign.fr/api/cadastre/parcelle?lat=${lat}&lon=${lng}`);
       if (!resp.ok) throw new Error("Erreur récupération parcelle cadastrale");
       const cadastre = await resp.json();
+      console.log("Réponse API Cadastre :", cadastre);
 
-      if (!cadastre.features || cadastre.features.length === 0) throw new Error("Pas de parcelle trouvée");
+      if (!cadastre.features || cadastre.features.length === 0) throw new Error("Pas de parcelle trouvée pour cette adresse !");
       parcelleData = cadastre.features[0].properties;
+      if (!parcelleData.commune_code || !parcelleData.section || !parcelleData.numero) throw new Error("Référence cadastrale incomplète.");
 
       document.getElementById('erp-summary').innerHTML =
         `<b>Adresse :</b> ${adresse}<br>` +
         `<b>Référence cadastrale :</b> ${parcelleData.commune_code} - ${parcelleData.section}-${parcelleData.numero}<br>` +
         `<i>Recherche en cours des risques et plans…</i>`;
 
-      // Construction URL API Géorisques avec encodage propre
+      // ----- Récupère les risques depuis Géorisques -----
       const params = new URLSearchParams({
         codeCommune: parcelleData.commune_code,
         section: parcelleData.section,
         numero: parcelleData.numero
       });
       const geoUrl = `https://www.georisques.gouv.fr/api/v1/erp/cadastre?${params.toString()}`;
+      console.log("Requête Géorisques :", geoUrl);
 
-      // --- Appel API Géorisques ---
       const geoResp = await fetch(geoUrl);
-      if (!geoResp.ok) throw new Error("Erreur API Géorisques");
+      if (!geoResp.ok) throw new Error("Erreur lors de l'accès à l'API Géorisques.");
       geoData = await geoResp.json();
 
-      // Affichage des extraits cartographiques si existants
+      // Affichage cartes réglementaires
       if (geoData.cartos && Array.isArray(geoData.cartos)) {
         let cartoHtml = "<h2>Extraits cartographiques réglementaires</h2>";
         geoData.cartos.forEach(carto => {
           if (carto.url) {
-            cartoHtml += `<img src="${carto.url}" alt="${carto.legende || "Extrait cartographique"}" style="max-width: 100%; margin-top: 10px;" />`;
+            cartoHtml += `<img src="${carto.url}" alt="${carto.legende || "Extrait cartographique"}" style="max-width:100%;margin-top:10px;" />`;
             cartoImgURLs.push(carto.url);
           }
         });
@@ -77,11 +78,11 @@ window.onload = () => {
       document.getElementById('erp-summary').innerHTML += "<br><b>Risques ERP récupérés : voir détails ci-dessous.</b>";
       document.getElementById('generate-pdf').disabled = false;
 
-      // Affichage tableau risques
+      // Affichage tableau des risques
       if (geoData.risques && geoData.risques.length) {
         let html = "<table><thead><tr><th>Type</th><th>État</th><th>Date</th><th>Exposé&nbsp;?</th></tr></thead><tbody>";
         geoData.risques.forEach(r => {
-          html += `<tr><td>${r.type || ''}</td><td>${r.etat || ''}</td><td>${r.date || ''}</td><td>${r.exposition ? "Oui" : "Non"}</td></tr>`;
+          html += `<tr><td>${r.type || ''}</td><td>${r.etat || ''}</td><td>${r.date || ''}</td><td>${r.exposition ? 'Oui' : 'Non'}</td></tr>`;
         });
         html += "</tbody></table>";
         document.getElementById('result').innerHTML = html;
@@ -94,18 +95,18 @@ window.onload = () => {
       document.getElementById('generate-pdf').disabled = true;
       document.getElementById('result').innerHTML = "";
       document.getElementById('cartos').innerHTML = "";
+      console.error(error);
     }
   };
 
-  // Génération PDF complet avec remplissage des champs
+  // --- Génération PDF ERP avec intégration automatique
   document.getElementById('generate-pdf').onclick = async () => {
     try {
       const url = "template_erp.pdf";
       const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
       const pdfDoc = await PDFLib.PDFDocument.load(existingPdfBytes);
 
-      const form = pdfDoc.getForm();
-
+      const form = pdfDoc.getForm && pdfDoc.getForm();
       if (form && form.getFieldMaybe) {
         const setField = (name, value) => {
           const field = form.getFieldMaybe(name);
@@ -130,7 +131,7 @@ window.onload = () => {
 
         form.flatten();
       } else {
-        // Option fallback si pas de formulaire interactif
+        // Option fallback (écrit le texte en dur si pas de formulaire interactif)
         const page = pdfDoc.getPages()[0];
         const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
@@ -144,10 +145,10 @@ window.onload = () => {
         });
       }
 
-      // Ajouter les images cartographiques en pages supplémentaires
+      // Annexe cartes réglementaires
       for (const imgURL of cartoImgURLs) {
         try {
-          const imgBytes = await fetch(imgURL).then(res => res.arrayBuffer());
+          const imgBytes = await fetch(imgURL).then(r => r.arrayBuffer());
           let embeddedImage;
           if (imgURL.toLowerCase().endsWith('.png')) {
             embeddedImage = await pdfDoc.embedPng(imgBytes);
@@ -158,11 +159,11 @@ window.onload = () => {
           const page = pdfDoc.addPage([width, height]);
           page.drawImage(embeddedImage, { x: 0, y: 0, width, height });
         } catch (e) {
-          console.warn("Erreur ajout image cartographique :", e);
+          console.warn("Erreur ajout image carto :", e);
         }
       }
 
-      // Générer et proposer le téléchargement
+      // Téléchargement PDF
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const link = document.createElement('a');
@@ -170,9 +171,8 @@ window.onload = () => {
       link.download = 'ERP_personnalise.pdf';
       link.textContent = "Télécharger votre rapport ERP complet";
 
-      const resultDiv = document.getElementById('result');
-      resultDiv.innerHTML = "";
-      resultDiv.appendChild(link);
+      document.getElementById('result').innerHTML = "";
+      document.getElementById('result').appendChild(link);
 
     } catch (e) {
       alert("Erreur lors de la génération du PDF : " + e.message);
